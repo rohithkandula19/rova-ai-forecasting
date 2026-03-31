@@ -1,0 +1,203 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: rova_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: rova_user
+      POSTGRES_PASSWORD: rova_pass
+      POSTGRES_DB: rova_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/scripts/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rova_user -d rova_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - rova_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: rova_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - rova_net
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rova_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://rova_user:rova_pass@db:5432/rova_db
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production-256bit
+      ENVIRONMENT: development
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      ALLOWED_ORIGINS: '["http://localhost:3000","http://localhost:8000"]'
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - model_artifacts:/app/artifacts
+    networks:
+      - rova_net
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rova_worker
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app worker --loglevel=info --concurrency=2 -Q simulation,backtest,ml,celery
+    environment:
+      DATABASE_URL: postgresql+asyncpg://rova_user:rova_pass@db:5432/rova_db
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production-256bit
+      ENVIRONMENT: development
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+      - model_artifacts:/app/artifacts
+    networks:
+      - rova_net
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rova_beat
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app beat --loglevel=info
+    environment:
+      DATABASE_URL: postgresql+asyncpg://rova_user:rova_pass@db:5432/rova_db
+      REDIS_URL: redis://redis:6379/0
+      SECRET_KEY: dev-secret-key-change-in-production-256bit
+    depends_on:
+      - redis
+    volumes:
+      - ./backend:/app
+    networks:
+      - rova_net
+
+  flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rova_flower
+    restart: unless-stopped
+    command: celery -A app.workers.celery_app flower --port=5555 --broker=redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+    networks:
+      - rova_net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: rova_frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      VITE_API_URL: ""
+      VITE_WS_URL: ""
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - api
+    networks:
+      - rova_net
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.11.0
+    container_name: rova_mlflow
+    restart: unless-stopped
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri /mlflow/artifacts
+      --default-artifact-root /mlflow/artifacts
+    ports:
+      - "5001:5000"
+    volumes:
+      - mlflow_artifacts:/mlflow/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - rova_net
+
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: rova_prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    networks:
+      - rova_net
+
+  grafana:
+    image: grafana/grafana:10.3.0
+    container_name: rova_grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: rova_grafana
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - rova_net
+
+volumes:
+  postgres_data:
+  redis_data:
+  mlflow_artifacts:
+  model_artifacts:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  rova_net:
+    driver: bridge
