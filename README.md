@@ -1,4 +1,4 @@
-> **⚠️ All Rights Reserved.** This repository is published for viewing and portfolio purposes only. The code is **not** open source — reuse, redistribution, modification, or derivative works are not permitted without written permission. See [LICENSE](./LICENSE).
+> **⚠️ All Rights Reserved.** This repository is published for viewing and portfolio purposes only. The code is **not** open source: reuse, redistribution, modification, or derivative works are not permitted without written permission. See [LICENSE](./LICENSE).
 <div align="center">
 
 <img src="https://img.shields.io/badge/ROVA-AI%20Forecasting-00ff9d?style=for-the-badge&labelColor=020609" />
@@ -26,9 +26,9 @@
 
 ## What is ROVA?
 
-ROVA is a **full-stack AI platform** that fetches real US lottery draw data from official sources, runs it through a PyTorch ML pipeline, and presents deep statistical analytics across 14 interactive screens — all deployed on Google Cloud Platform with automatic post-draw syncing.
+ROVA is a **full-stack AI platform** that fetches real US lottery draw data from official sources, runs it through a PyTorch ML pipeline, and presents deep statistical analytics across 14 interactive screens, all deployed on Google Cloud Platform with automatic post-draw syncing.
 
-> ⚠️ Lottery draws are cryptographically random. ROVA performs statistical analysis and ML pattern recognition — not prediction. No model can predict lottery outcomes. Play responsibly.
+> ⚠️ Lottery draws are cryptographically random. ROVA performs statistical analysis and ML pattern recognition, not prediction. No model can predict lottery outcomes. Play responsibly.
 
 ---
 
@@ -40,12 +40,12 @@ ROVA is a **full-stack AI platform** that fetches real US lottery draw data from
 | **Backend** | FastAPI, Python 3.12, SQLAlchemy (async), Alembic |
 | **ML** | PyTorch (NN + LSTM), NumPy, Pandas, Scikit-learn |
 | **AI** | Anthropic Claude API (claude-sonnet-4) |
-| **Database** | PostgreSQL 16 — Cloud SQL |
+| **Database** | PostgreSQL 16 · Cloud SQL |
 | **Cache / Queue** | Redis 7 + Celery + Beat |
 | **Experiment Tracking** | MLflow → GCS artifacts |
 | **Monitoring** | Prometheus, Grafana |
 | **Infrastructure** | GCP Cloud Run, Cloud Scheduler (7 jobs), Secret Manager |
-| **Auth** | JWT — PyJWT + SHA-256 |
+| **Auth** | JWT · PyJWT + SHA-256 |
 | **Notifications** | SendGrid (email) + Web Push API |
 
 ---
@@ -56,7 +56,7 @@ This is the core of what makes ROVA different from a simple stats dashboard.
 
 ### Models
 
-**Dense Neural Network — `ROVAScorerNN`**
+**Dense Neural Network · `ROVAScorerNN`**
 ```
 Input:  128-dim feature vector
         128 → 256 (BatchNorm, ReLU, Dropout 0.3)
@@ -67,7 +67,7 @@ Input:  128-dim feature vector
 Output: Scalar score ∈ [0, 1]
 ```
 
-**LSTM Sequence Model — `ROVASequenceLSTM`**
+**LSTM Sequence Model · `ROVASequenceLSTM`**
 ```
 Input:  Last 50 draws as binary vectors (50 × 70)
         2-layer LSTM, hidden=128, dropout=0.3
@@ -77,7 +77,7 @@ Output: Probability distribution over pool numbers
 
 **Ensemble:** `score = 0.6 × NN + 0.4 × LSTM`
 
-### Feature Engineering — 128-dim Vector
+### Feature Engineering · 128-dim Vector
 
 Each combination of 6 numbers is encoded into a 128-dimensional feature vector:
 
@@ -93,7 +93,7 @@ Each combination of 6 numbers is encoded into a 128-dimensional feature vector:
 - Mean, std, range of selected set
 - Even/odd ratio, low-half ratio, normalized spread
 
-### Explainability — SHAP-style Attributions
+### Explainability · SHAP-style Attributions
 
 Every scored combination returns feature attributions:
 
@@ -140,7 +140,7 @@ if kl_div > threshold:
                       │
           ┌───────────▼───────────┐
           │   Cloud Scheduler     │
-          │  7 jobs — auto-sync   │
+          │  7 jobs - auto-sync   │
           │  after every draw     │
           └───────────┬───────────┘
                       │
@@ -167,9 +167,9 @@ if kl_div > threshold:
 | **Ticket Checker** | Check any ticket against all historical draws with prize breakdown |
 | **Jackpot Chart** | Interactive SVG chart of jackpot progression with hover tooltips |
 | **Winners Map** | US state heatmap of jackpot winner locations |
-| **Co-occurrence** | Number pair frequency matrix — ranked pairs + heatmap |
-| **Calendar** | Visual draw calendar — click any date for full draw details |
-| **Simulate** | Monte Carlo simulation — 1M tickets, realistic prize distribution |
+| **Co-occurrence** | Number pair frequency matrix: ranked pairs + heatmap |
+| **Calendar** | Visual draw calendar: click any date for full draw details |
+| **Simulate** | Monte Carlo simulation: 1M tickets, realistic prize distribution |
 | **Backtest** | Strategy backtesting against verified historical draws |
 | **Profile** | JWT auth, saved number combinations, notification preferences |
 
@@ -189,11 +189,11 @@ Draws auto-sync after every result via Cloud Scheduler. Frontend polls the API e
 
 ## Engineering Challenges
 
-Real problems hit during development — documented because this is where the actual engineering happened.
+Real problems hit during development, documented because this is where the actual engineering happened.
 
 ---
 
-### 1 — Apple Silicon → GCP Architecture Mismatch
+### 1 · Apple Silicon → GCP Architecture Mismatch
 
 Docker images built on M-series Macs use ARM64. GCP Cloud Run runs AMD64. The container passed health checks then crashed on every request:
 
@@ -208,7 +208,7 @@ docker build --platform linux/amd64 -t gcr.io/PROJECT/rova-api ./backend
 
 ---
 
-### 2 — bcrypt Version Incompatibility
+### 2 · bcrypt Version Incompatibility
 
 User registration returned `500` with two simultaneous errors:
 ```
@@ -216,7 +216,7 @@ ValueError: password cannot be longer than 72 bytes
 AttributeError: module 'bcrypt' has no attribute '__about__'
 ```
 
-`passlib` was calling internal bcrypt APIs that changed between versions. **Fix:** Replaced bcrypt entirely with Python's built-in `hashlib` + `secrets` — no external dependency, no version conflicts:
+`passlib` was calling internal bcrypt APIs that changed between versions. **Fix:** Replaced bcrypt entirely with Python's built-in `hashlib` + `secrets`, no external dependency, no version conflicts:
 
 ```python
 def hash_password(password: str) -> str:
@@ -226,7 +226,7 @@ def hash_password(password: str) -> str:
 
 ---
 
-### 3 — Frontend Calling Relative URLs in Production
+### 3 · Frontend Calling Relative URLs in Production
 
 `axios.post('/api/v1/users/register')` worked locally (same Docker network) but hit the nginx frontend server in production, returning `405 Not Allowed`. Only visible in DevTools network tab.
 
@@ -242,9 +242,9 @@ axios.post(`${API}/api/v1/users/register`, body)
 
 ---
 
-### 4 — TypeScript Strict Mode Blocking Production Builds
+### 4 · TypeScript Strict Mode Blocking Production Builds
 
-Vite dev server skips type checking entirely. The Docker build runs `tsc && vite build` — full type checking only at deploy time. Three categories of errors surfaced:
+Vite dev server skips type checking entirely. The Docker build runs `tsc && vite build`: full type checking only at deploy time. Three categories of errors surfaced:
 
 ```
 error TS2353: 'winnerCity' does not exist in type 'Draw'
@@ -258,7 +258,7 @@ error TS2322: Property 'className' does not exist on type IntrinsicAttributes
 
 ---
 
-### 5 — Cloud Run Cold Start Killing Scheduled Jobs
+### 5 · Cloud Run Cold Start Killing Scheduled Jobs
 
 Cloud Run scales to zero when idle. Cold start takes 15–30 seconds. The post-draw sync scheduler timed out before the scraper completed, returning empty data silently.
 
@@ -269,14 +269,14 @@ Cloud Run scales to zero when idle. Cold start takes 15–30 seconds. The post-d
 
 ---
 
-### 6 — GCP OAuth `restricted_client` Error
+### 6 · GCP OAuth `restricted_client` Error
 
 ```
 Error 403: restricted_client
 Unregistered scope: https://www.googleapis.com/auth/userinfo.email
 ```
 
-The error looked like an OAuth config issue but the root cause was billing not linked to the project — IAM operations silently fail before billing is activated.
+The error looked like an OAuth config issue but the root cause was billing not linked to the project. IAM operations silently fail before billing is activated.
 
 **Fix:** Link billing first → grant owner role → skip ADC entirely for CLI deployments (`gcloud auth login` is sufficient for `docker push` and `gcloud run deploy`).
 
